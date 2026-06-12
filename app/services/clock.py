@@ -259,9 +259,10 @@ def _generate_quiet_image(font_name: str) -> bytes:
 
 
 def generate_clock_image(
-    font_name:  str        = DEFAULT_FONT,
-    sleep_time: bool       = False,
-    weather:    dict | None = None,
+    font_name:   str        = DEFAULT_FONT,
+    sleep_time:  bool       = False,
+    weather:     dict | None = None,
+    jewish_date: str | None  = None,
 ) -> bytes:
     fn = font_name if font_name in VALID_FONTS else DEFAULT_FONT
 
@@ -325,7 +326,7 @@ def generate_clock_image(
     draw.line([(div_x2, H - 92), (div_x2, H - 15)], fill=0, width=1)
 
     day_name = DAYS_HE[now.weekday()]
-    date_str = f"{now.day} {MONTHS_HE[now.month - 1]}"
+    date_str = jewish_date if jewish_date else f"{now.day} {MONTHS_HE[now.month - 1]}"
     left_cx  = (bar_left + div_x) // 2
     draw.text((left_cx, bar_cy - 14), day_name, font=font_small, fill=0, anchor="mm")
     draw.text((left_cx, bar_cy + 14), date_str, font=font_small, fill=0, anchor="mm")
