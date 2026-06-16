@@ -62,3 +62,64 @@ def test_sitemap_locations_url_encoded():
     result = generate_sitemap(BASE)
     assert "Tel%20Aviv" in result
     assert "Beer%20Sheva" in result
+
+
+# ── Route smoke tests ─────────────────────────────────────────────────────────
+
+from fastapi.testclient import TestClient
+from app.main import app
+
+
+@pytest.fixture(scope="module")
+def client():
+    with TestClient(app) as c:
+        yield c
+
+
+def test_robots_route_200(client):
+    resp = client.get("/robots.txt")
+    assert resp.status_code == 200
+    assert "text/plain" in resp.headers["content-type"]
+
+
+def test_robots_route_contains_sitemap(client):
+    resp = client.get("/robots.txt")
+    assert "sitemap.xml" in resp.text
+
+
+def test_sitemap_route_200(client):
+    resp = client.get("/sitemap.xml")
+    assert resp.status_code == 200
+    assert "xml" in resp.headers["content-type"]
+
+
+def test_sitemap_route_entry_count(client):
+    resp = client.get("/sitemap.xml")
+    root = ET.fromstring(resp.text)
+    assert len(root.findall("sm:url", _NS)) == 61
+
+
+def test_home_has_canonical(client):
+    resp = client.get("/")
+    assert 'rel="canonical"' in resp.text
+
+
+def test_home_has_og_image(client):
+    resp = client.get("/")
+    assert 'property="og:image"' in resp.text
+
+
+def test_home_has_og_image_dimensions(client):
+    resp = client.get("/")
+    assert 'property="og:image:width"' in resp.text
+    assert 'property="og:image:height"' in resp.text
+
+
+def test_home_has_description(client):
+    resp = client.get("/")
+    assert 'name="description"' in resp.text
+
+
+def test_home_has_keywords(client):
+    resp = client.get("/")
+    assert 'name="keywords"' in resp.text

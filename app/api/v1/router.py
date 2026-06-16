@@ -2,11 +2,12 @@ from pathlib import Path
 
 from fastapi import APIRouter, Request, Query
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, Response
 from fastapi.templating import Jinja2Templates
 
 from app.core.config import settings
 from app.services import clock, weather as weather_svc, jewish_cal as jewish_cal_svc
+from app.services import seo as seo_svc
 
 router = APIRouter()
 
@@ -20,6 +21,7 @@ _TEMPLATES = Jinja2Templates(
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def home(request: Request) -> HTMLResponse:
+    base_url = str(request.base_url).rstrip("/")
     return _TEMPLATES.TemplateResponse(
         request,
         "index.html",
@@ -29,7 +31,23 @@ async def home(request: Request) -> HTMLResponse:
             "default_location": "Tel Aviv",
             "default_calendar": "gregorian",
             "gtag_id": settings.gtag_id,
+            "base_url": base_url,
         },
+    )
+
+
+@router.get("/robots.txt", response_class=PlainTextResponse, include_in_schema=False)
+async def robots_txt(request: Request) -> PlainTextResponse:
+    base_url = str(request.base_url).rstrip("/")
+    return PlainTextResponse(seo_svc.generate_robots(base_url))
+
+
+@router.get("/sitemap.xml", include_in_schema=False)
+async def sitemap_xml(request: Request) -> Response:
+    base_url = str(request.base_url).rstrip("/")
+    return Response(
+        content=seo_svc.generate_sitemap(base_url),
+        media_type="application/xml",
     )
 
 
