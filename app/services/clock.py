@@ -12,7 +12,8 @@ from app.core.config import settings
 
 VALID_FONTS = {
     "DavidLibre-Bold", "FrankRuhlLibre-Bold", "FrankRuhlLibre",
-    "Heebo-Bold", "NotoSansHebrew-Bold", "yiddishkeit-bold-fm",
+    "Heebo-Bold", "NotoSansHebrew-Bold",
+    "yiddishkeit-bold-fm",
 }
 DEFAULT_FONT = "FrankRuhlLibre"
 
@@ -62,15 +63,7 @@ DAYS_HE = [
 ]
 
 DAILY_SENTENCES = [
-    "לֹא בָּאתִי לָעֲבוֹדָה, בָּאתִי לַעֲבוֹד",
-    "אַל תִּשְׂנָא אֶת עַצְמְךָ, זֶה הוֹמוֹפוֹבִּי",
-    "הוֹמוֹ בְּקֶטַע טוֹב",
-    "אֵיךְ זֶה מַרְגִּישׁ לִהְיוֹת הֲכִי שָׁוֶה בָּעוֹלָם?",
-    "הוֹמוֹ חוֹד",
-    "בֹּקֶר שׁוֹקֶר",
     "צִפּוֹר עִם צִפּוֹר נִפְגֶּשֶׁת",
-    "עוּפִי עַל הַטִּיּוּל שֶׁלָּךְ",
-    "אַתָּה תַּעֲשֶׂה אַתָּה",
 ]
 
 NIGHT_SENTENCE = "לַיְלָה טוֹב וּזְהִירוּת מֵהַהוֹמוֹאִים"
@@ -91,8 +84,8 @@ def get_font(size: int, font_name: str = DEFAULT_FONT) -> ImageFont.FreeTypeFont
         if path.exists():
             try:
                 return ImageFont.truetype(str(path), size)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.warning("failed loading font {}.{}: {}", name, ext, exc)
 
     for fallback in ("NotoSansHebrew-Bold", "FrankRuhlLibre"):
         for ext in ("ttf", "otf"):
