@@ -26,7 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY app/ /app/app/
 # Font files and sleeping.png must be present at /app/ (FONT_DIR default)
-COPY *.ttf sleeping.png* /app/
+COPY *.ttf *.otf sleeping.png* /app/
 
 RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /app
