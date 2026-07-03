@@ -61,6 +61,15 @@ DAYS_HE = [
     "יוֹם חֲמִישִׁי", "יוֹם שִׁישִּׁי", "שַׁבָּת", "יוֹם רִאשׁוֹן",
 ]
 
+DAILY_SENTENCES = [
+    "הַיּוֹם קָטָן, אֲבָל מַסְפִּיק לִדְבָרִים גְּדוֹלִים",
+    "קַח רֶגַע לִנְשֹׁם",
+    "מַשֶּׁהוּ טוֹב יִקְרֶה הַיּוֹם",
+    "לְאַט לְאַט זֶה גַּם קָדִימָה",
+]
+
+NIGHT_SENTENCE = "לַיְלָה טוֹב, זְמַן לָנוּחַ"
+
 # ── Helpers ───────────────────────────────────────────
 
 def get_israel_time() -> datetime.datetime:
@@ -202,6 +211,137 @@ def _draw_analog_clock(draw: ImageDraw.Draw, cx: int, cy: int, r: int,
                cy + (r * 0.75) * math.sin(min_angle)], fill=0, width=2)
     draw.ellipse([cx - 4, cy - 4, cx + 4, cy + 4], fill=0)
 
+def _choose_daily_sentence(now: datetime.datetime) -> str:
+    # From 23:00 until 06:00 always show the same night sentence
+    if now.hour >= 23 or now.hour < 6:
+        return NIGHT_SENTENCE
+
+    # The "day" starts at 06:00.
+    # This makes the random sentence stay stable all day.
+    day_key = now.date().toordinal()
+    rng = random.Random(day_key)
+
+    if not DAILY_SENTENCES:
+        return ""
+
+    return rng.choice(DAILY_SENTENCES)
+
+
+def _fit_font_to_width(
+    draw: ImageDraw.Draw,
+    text: str,
+    font_name: str,
+    start_size: int,
+    max_width: int,
+    min_size: int = 20,
+) -> ImageFont.FreeTypeFont:
+    size = start_size
+    while size >= min_size:
+        f = get_font(size, font_name)
+        bbox = draw.textbbox((0, 0), text, font=f)
+        if bbox[2] - bbox[0] <= max_width:
+            return f
+        size -= 4
+    return get_font(min_size, font_name)
+
+
+def _draw_multiline_centered(
+    draw: ImageDraw.Draw,
+    lines: list[str],
+    center_x: int,
+    start_y: int,
+    font_name: str,
+    start_size: int,
+    max_width: int,
+    line_gap: int,
+) -> int:
+    y = start_y
+
+    for line in lines:
+        f = _fit_font_to_width(draw, line, font_name, start_size, max_width)
+        draw.text((center_x, y), line, font=f, fill=0, anchor="mm")
+        y += getattr(f, "size", start_size) + line_gap
+
+    return y
+
+
+def _generate_minimal_clock_image(
+    font_name: str,
+    now: datetime.datetime,
+    h24: int,
+    m: int,
+    weather: dict | None,
+) -> bytes:
+    W, H = 800, 480
+    img = Image.new("L", (W, H), color=255)
+    draw = ImageDraw.Draw(img)
+
+    PAD = 18
+
+    # Thin simple border, like the photo
+    draw.rectangle([8, 8, W - 8, H - 8], outline=0, width=2)
+
+    # Top-left date: dd/mm/yy
+    date_text = now.strftime("%d/%m/%y")
+    date_font = get_font(34, font_name)
+    draw.text((PAD + 10, PAD + 8), date_text, font=date_font, fill=0, anchor="la")
+
+    # Top-right weather: temperature + small icon, no weather text
+    if weather:
+        temp_font = get_font(38, font_name)
+        temp_text = f"{weather['temp']}°"
+
+        # temperature near the corner
+        draw.text((W - PAD - 18, PAD + 28), temp_text, font=temp_font, fill=0, anchor="ra")
+
+        # icon to the left of the temperature
+        _draw_weather_icon(
+            draw,
+            W - PAD - 110,
+            PAD + 32,
+            weather.get("icon_key", "cloud"),
+            size=28,
+        )
+
+    # Big Hebrew time in the middle
+    lines = _get_time_lines(h24, m)
+    time_lines = [line for line in lines if line not in PERIOD_WORDS]
+
+    # In the old template the period line is separated.
+    # In the new template, keep it as part of the big time.
+    period_line = next((line for line in lines if line in PERIOD_WORDS), "")
+    if period_line:
+        time_lines.append(period_line)
+
+    # Move slightly up so sentence has space below
+    time_start_y = 170
+    y_after_time = _draw_multiline_centered(
+        draw=draw,
+        lines=time_lines,
+        center_x=W // 2,
+        start_y=time_start_y,
+        font_name=font_name,
+        start_size=88,
+        max_width=W - 90,
+        line_gap=8,
+    )
+
+    # Daily sentence under the time
+    sentence = _choose_daily_sentence(now)
+    sentence_font = _fit_font_to_width(
+        draw,
+        sentence,
+        font_name,
+        start_size=30,
+        max_width=W - 130,
+        min_size=20,
+    )
+
+    sentence_y = min(y_after_time + 35, H - 80)
+    draw.text((W // 2, sentence_y), sentence, font=sentence_font, fill=0, anchor="mm")
+
+    return _png_bytes(img)
+
 # ── Image generators ──────────────────────────────────
 
 def _generate_night_image(font_name: str) -> bytes:
@@ -271,8 +411,9 @@ def generate_clock_image(
 
     now  = get_israel_time()
     h24, m = now.hour, now.minute
+    return _generate_minimal_clock_image(fn, now, h24, m, weather)
 
-    if h24 == 6 or (h24 == 7 and m < 30):
+    if h24 == 3 or (h24 == 4 and m < 30):
         return _generate_quiet_image(fn)
 
     W, H = 800, 480
