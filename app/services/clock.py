@@ -63,19 +63,24 @@ DAYS_HE = [
 ]
 
 DAILY_SENTENCES = [
+    "לֹא בָּאתִי לָעֲבוֹדָה, בָּאתִי לַעֲבוֹד",
+    "אַל תִּשְׂנָא אֶת עַצְמְךָ, זֶה הוֹמוֹפוֹבִּי",
+    "הוֹמוֹ בְּקֶטַע טוֹב",
+    "אֵיךְ זֶה מַרְגִּישׁ לִהְיוֹת הֲכִי שָׁוֶה בָּעוֹלָם?",
+    "הוֹמוֹ חוֹד",
+    "בֹּקֶר שׁוֹקֶר",
     "צִפּוֹר עִם צִפּוֹר נִפְגֶּשֶׁת",
+    "עוּפִי עַל הַטִּיּוּל שֶׁלָּךְ",
+    "אַתָּה תַּעֲשֶׂה אַתָּה",
 ]
-
 NIGHT_SENTENCE = "לַיְלָה טוֹב וּזְהִירוּת מֵהַהוֹמוֹאִים"
 
 # ── Helpers ───────────────────────────────────────────
 
 def get_israel_time() -> datetime.datetime:
-    # TEMP TEST: force midnight to check חצות
-    return datetime.datetime(2026, 7, 3, 0, 0, 0)
-    #utc = datetime.datetime.utcnow()
-    #local = utc + datetime.timedelta(hours=3 if 3 <= utc.month <= 10 else 2)
-    #return local + datetime.timedelta(seconds=settings.display_lag)
+    utc = datetime.datetime.utcnow()
+    local = utc + datetime.timedelta(hours=3 if 3 <= utc.month <= 10 else 2)
+    return local + datetime.timedelta(seconds=settings.display_lag)
 
 
 def get_font(size: int, font_name: str = DEFAULT_FONT) -> ImageFont.FreeTypeFont:
@@ -121,7 +126,7 @@ def _get_time_period(h: int) -> str:
 def _get_time_lines(h24: int, m: int) -> list[str]:
     # Exact midnight
     if h24 == 0 and m == 0:
-        return ["חצות"]
+        return ["חֲצוֹת"]
 
     h12 = h24 % 12 or 12
     period = _get_time_period(h24)
