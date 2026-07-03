@@ -12,7 +12,7 @@ from app.core.config import settings
 
 VALID_FONTS = {
     "DavidLibre-Bold", "FrankRuhlLibre-Bold", "FrankRuhlLibre",
-    "Heebo-Bold", "NotoSansHebrew-Bold",
+    "Heebo-Bold", "NotoSansHebrew-Bold", "yiddishkeit-bold-fm",
 }
 DEFAULT_FONT = "FrankRuhlLibre"
 
@@ -85,19 +85,24 @@ def get_israel_time() -> datetime.datetime:
 
 def get_font(size: int, font_name: str = DEFAULT_FONT) -> ImageFont.FreeTypeFont:
     name = font_name if font_name in VALID_FONTS else DEFAULT_FONT
-    path = settings.font_dir / f"{name}.ttf"
-    if path.exists():
-        try:
-            return ImageFont.truetype(str(path), size)
-        except Exception:
-            pass
-    for fallback in ("NotoSansHebrew-Bold", "FrankRuhlLibre"):
-        fb = settings.font_dir / f"{fallback}.ttf"
-        if fb.exists():
+
+    for ext in ("ttf", "otf"):
+        path = settings.font_dir / f"{name}.{ext}"
+        if path.exists():
             try:
-                return ImageFont.truetype(str(fb), size)
+                return ImageFont.truetype(str(path), size)
             except Exception:
                 pass
+
+    for fallback in ("NotoSansHebrew-Bold", "FrankRuhlLibre"):
+        for ext in ("ttf", "otf"):
+            fb = settings.font_dir / f"{fallback}.{ext}"
+            if fb.exists():
+                try:
+                    return ImageFont.truetype(str(fb), size)
+                except Exception:
+                    pass
+
     return ImageFont.load_default()
 
 
@@ -585,11 +590,14 @@ def generate_clock_image(
 
     return _png_bytes(img)
 
-
 def log_available_fonts() -> None:
-    found = [f for f in VALID_FONTS
-             if (settings.font_dir / f"{f}.ttf").exists()]
+    found = []
+    for f in VALID_FONTS:
+        if (settings.font_dir / f"{f}.ttf").exists() or (settings.font_dir / f"{f}.otf").exists():
+            found.append(f)
+
     if found:
         logger.info("available fonts: {}", ", ".join(sorted(found)))
     else:
         logger.warning("no Hebrew font files found in {}", settings.font_dir)
+
