@@ -14,7 +14,7 @@ VALID_FONTS = {
     "DavidLibre-Bold", "FrankRuhlLibre-Bold", "FrankRuhlLibre",
     "Heebo-Bold", "NotoSansHebrew-Bold",
 }
-DEFAULT_FONT = "NotoSansHebrew-Bold"
+DEFAULT_FONT = "FrankRuhlLibre"
 
 # ── Hebrew time tables ────────────────────────────────
 
@@ -114,13 +114,21 @@ def _get_time_period(h: int) -> str:
 
 
 def _get_time_lines(h24: int, m: int) -> list[str]:
+    # Exact midnight
+    if h24 == 0 and m == 0:
+        return ["חצות"]
+
     h12 = h24 % 12 or 12
     period = _get_time_period(h24)
     mp = MINUTE_PREFIX[m]
     hp = HOURS[h12 - 1]
-    if len(hp + mp) > 25:
+
+    combined = f"{hp} {mp}".strip()
+
+    if len(combined) > 25:
         return [hp, mp, period]
-    return [hp + " " + mp, period]
+
+    return [combined, period]
 
 # ── Drawing ───────────────────────────────────────────
 
@@ -263,6 +271,44 @@ def _draw_multiline_centered(
         y += getattr(f, "size", start_size) + line_gap
 
     return y
+    
+def _fit_multiline_block(
+    draw: ImageDraw.Draw,
+    lines: list[str],
+    font_name: str,
+    start_size: int,
+    max_width: int,
+    max_height: int,
+    line_gap: int = 8,
+    min_size: int = 32,
+):
+    if not lines:
+        return get_font(start_size, font_name), [], 0
+
+    last_font = get_font(min_size, font_name)
+    last_heights = []
+    last_total_h = 0
+
+    for size in range(start_size, min_size - 1, -4):
+        font = get_font(size, font_name)
+
+        widths = []
+        heights = []
+        for line in lines:
+            bbox = draw.textbbox((0, 0), line, font=font)
+            widths.append(bbox[2] - bbox[0])
+            heights.append(bbox[3] - bbox[1])
+
+        total_h = sum(heights) + line_gap * (len(lines) - 1)
+
+        last_font = font
+        last_heights = heights
+        last_total_h = total_h
+
+        if max(widths) <= max_width and total_h <= max_height:
+            return font, heights, total_h
+
+    return last_font, last_heights, last_total_h
 
 
 def _generate_minimal_clock_image(
@@ -278,7 +324,7 @@ def _generate_minimal_clock_image(
 
     PAD = 18
 
-    # Thin simple border, like the photo
+    # Border
     draw.rectangle([8, 8, W - 8, H - 8], outline=0, width=2)
 
     # Top-left date: dd/mm/yy
@@ -286,15 +332,12 @@ def _generate_minimal_clock_image(
     date_font = get_font(34, font_name)
     draw.text((PAD + 10, PAD + 8), date_text, font=date_font, fill=0, anchor="la")
 
-    # Top-right weather: temperature + small icon, no weather text
+    # Top-right weather: icon + temperature only
     if weather:
         temp_font = get_font(38, font_name)
         temp_text = f"{weather['temp']}°"
 
-        # temperature near the corner
         draw.text((W - PAD - 18, PAD + 28), temp_text, font=temp_font, fill=0, anchor="ra")
-
-        # icon to the left of the temperature
         _draw_weather_icon(
             draw,
             W - PAD - 110,
@@ -303,44 +346,66 @@ def _generate_minimal_clock_image(
             size=28,
         )
 
-    # Big Hebrew time in the middle
+    # Time lines
     lines = _get_time_lines(h24, m)
     time_lines = [line for line in lines if line not in PERIOD_WORDS]
-
-    # In the old template the period line is separated.
-    # In the new template, keep it as part of the big time.
     period_line = next((line for line in lines if line in PERIOD_WORDS), "")
     if period_line:
         time_lines.append(period_line)
 
-    # Move slightly up so sentence has space below
-    time_start_y = 170
-    y_after_time = _draw_multiline_centered(
-        draw=draw,
-        lines=time_lines,
-        center_x=W // 2,
-        start_y=time_start_y,
-        font_name=font_name,
-        start_size=88,
-        max_width=W - 90,
-        line_gap=8,
-    )
-
-    # Daily sentence under the time
+    # Sentence under the time
     sentence = _choose_daily_sentence(now)
     sentence_font = _fit_font_to_width(
         draw,
         sentence,
         font_name,
         start_size=30,
-        max_width=W - 130,
+        max_width=W - 140,
         min_size=20,
     )
+    sentence_bbox = draw.textbbox((0, 0), sentence, font=sentence_font)
+    sentence_w = sentence_bbox[2] - sentence_bbox[0]
+    sentence_h = sentence_bbox[3] - sentence_bbox[1]
 
-    sentence_y = min(y_after_time + 35, H - 80)
-    draw.text((W // 2, sentence_y), sentence, font=sentence_font, fill=0, anchor="mm")
+    # Reserve space for the sentence so it never overlaps the time
+    top_area_y = 95
+    bottom_margin = 36
+    gap_between_time_and_sentence = 18
+    max_time_height = (
+        H - top_area_y - bottom_margin - gap_between_time_and_sentence - sentence_h - 10
+    )
+
+    time_font, time_heights, time_block_h = _fit_multiline_block(
+        draw=draw,
+        lines=time_lines,
+        font_name=font_name,
+        start_size=88,
+        max_width=W - 90,
+        max_height=max_time_height,
+        line_gap=8,
+        min_size=34,
+    )
+
+    # Center the time block vertically in the available area
+    time_y = top_area_y + max(0, (max_time_height - time_block_h) // 2)
+
+    line_gap = 8
+    y = time_y
+    for line, line_h in zip(time_lines, time_heights):
+        bbox = draw.textbbox((0, 0), line, font=time_font)
+        line_w = bbox[2] - bbox[0]
+
+        x = (W - line_w) // 2
+        draw.text((x, y - bbox[1]), line, font=time_font, fill=0)
+        y += line_h + line_gap
+
+    # Draw the sentence clearly below the time block
+    sentence_y = min(y + gap_between_time_and_sentence, H - bottom_margin - sentence_h)
+    sentence_x = (W - sentence_w) // 2
+    draw.text((sentence_x, sentence_y - sentence_bbox[1]), sentence, font=sentence_font, fill=0)
 
     return _png_bytes(img)
+    
 
 # ── Image generators ──────────────────────────────────
 
